@@ -1,0 +1,84 @@
+import { z } from "zod";
+
+export const StageEnum = z.enum([
+  "high_school",
+  "college",
+  "new_grad",
+  "career_switcher",
+  "self_taught",
+]);
+export type Stage = z.infer<typeof StageEnum>;
+
+export const BudgetEnum = z.enum(["free", "low", "flexible"]);
+export type Budget = z.infer<typeof BudgetEnum>;
+
+export const UserProfileSchema = z.object({
+  goal: z.string().min(2).max(120),
+  stage: StageEnum,
+  knownSkills: z.array(z.string().max(60)).max(40).default([]),
+  hoursPerWeek: z.number().int().min(1).max(80),
+  budget: BudgetEnum,
+  timelineMonths: z.number().int().min(1).max(60),
+});
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+export const ResourceSchema = z.object({
+  name: z.string().max(120),
+  url: z.string().max(300).optional().default(""),
+  cost: z.enum(["free", "paid"]).default("free"),
+});
+export type Resource = z.infer<typeof ResourceSchema>;
+
+export const RoadmapNodeSchema = z.object({
+  id: z.string().min(1).max(40),
+  title: z.string().min(2).max(120),
+  skills: z.array(z.string().max(60)).max(12).default([]),
+  estimatedWeeks: z.number().min(0).max(260),
+  why: z.string().max(400).default(""),
+  phase: z.string().max(60).optional().default(""),
+  resources: z.array(ResourceSchema).max(5).default([]),
+});
+export type RoadmapNode = z.infer<typeof RoadmapNodeSchema>;
+
+export const RoadmapEdgeSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  condition: z.string().max(120).optional().default(""),
+});
+export type RoadmapEdge = z.infer<typeof RoadmapEdgeSchema>;
+
+export const RoadmapGraphSchema = z.object({
+  title: z.string().max(120).optional().default(""),
+  summary: z.string().max(600).optional().default(""),
+  nodes: z.array(RoadmapNodeSchema).min(1).max(40),
+  edges: z.array(RoadmapEdgeSchema).max(80),
+});
+export type RoadmapGraph = z.infer<typeof RoadmapGraphSchema>;
+
+export const ChatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
+/**
+ * Extract a JSON object from a model response that may include prose or code fences.
+ */
+export function extractJson(raw: string): unknown {
+  if (!raw) throw new Error("Empty model response");
+  let text = raw.trim();
+
+  // Strip ```json ... ``` or ``` ... ``` fences.
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence && fence[1]) text = fence[1].trim();
+
+  // Fall back to the first balanced-looking object slice.
+  if (!text.startsWith("{")) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      text = text.slice(start, end + 1);
+    }
+  }
+  return JSON.parse(text);
+}
