@@ -1,5 +1,6 @@
 import { BedrockProvider } from "./bedrock";
 import { GeminiProvider } from "./gemini";
+import { MistralProvider } from "./mistral";
 import { NvidiaProvider } from "./nvidia";
 import type { LLMProvider, ProviderName } from "./types";
 
@@ -8,7 +9,7 @@ export * from "./types";
 /**
  * Resolve the active LLM provider from environment variables.
  *
- * LLM_PROVIDER = gemini | nvidia | bedrock | demo (auto)
+ * LLM_PROVIDER = gemini | nvidia | bedrock | mistral | demo (auto)
  *
  * When unset, we auto-detect from available keys, and fall back to a built-in
  * "demo" mode so the app is fully usable out-of-the-box (great for screenshots
@@ -27,6 +28,10 @@ export function getProvider(): LLMProvider | null {
     process.env.NVIDIA_API_KEY
       ? new NvidiaProvider(process.env.NVIDIA_API_KEY)
       : null;
+  const tryMistral = () =>
+    process.env.MISTRAL_API_KEY
+      ? new MistralProvider(process.env.MISTRAL_API_KEY)
+      : null;
   const tryBedrock = () => new BedrockProvider();
 
   switch (explicit) {
@@ -34,6 +39,8 @@ export function getProvider(): LLMProvider | null {
       return tryGemini();
     case "nvidia":
       return tryNvidia();
+    case "mistral":
+      return tryMistral();
     case "bedrock":
       return tryBedrock();
     case "demo":
@@ -41,7 +48,7 @@ export function getProvider(): LLMProvider | null {
   }
 
   // Auto-detect.
-  return tryGemini() ?? tryNvidia() ?? null;
+  return tryGemini() ?? tryNvidia() ?? tryMistral() ?? null;
 }
 
 export function activeProviderName(): ProviderName {

@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@/lib/schema";
 
-export type ProviderName = "gemini" | "nvidia" | "bedrock" | "demo";
+export type ProviderName = "gemini" | "nvidia" | "bedrock" | "mistral" | "demo";
 
 export interface CompletionRequest {
   system: string;

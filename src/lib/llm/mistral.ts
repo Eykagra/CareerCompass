@@ -1,17 +1,15 @@
 import type { CompletionRequest, LLMProvider } from "./types";
 import { LLMError } from "./types";
 
-const DEFAULT_MODEL =
-  process.env.NVIDIA_MODEL || "minimaxai/minimax-m2.7";
-const BASE =
-  process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
+const DEFAULT_MODEL = process.env.MISTRAL_MODEL || "mistral-large-latest";
+const BASE = process.env.MISTRAL_BASE_URL || "https://api.mistral.ai/v1";
 
 /**
- * NVIDIA NIM provider (OpenAI-compatible).
- * Works with any model hosted on build.nvidia.com (MiniMax, Mistral, DeepSeek, Llama, ...).
+ * Mistral AI provider (OpenAI-compatible).
+ * Supports models like mistral-large-latest, mistral-small-latest, etc.
  */
-export class NvidiaProvider implements LLMProvider {
-  readonly name = "nvidia" as const;
+export class MistralProvider implements LLMProvider {
+  readonly name = "mistral" as const;
 
   constructor(private readonly apiKey: string) {}
 
@@ -35,10 +33,8 @@ export class NvidiaProvider implements LLMProvider {
         body: JSON.stringify({
           model: DEFAULT_MODEL,
           messages,
-          temperature: req.temperature ?? 1,
-          top_p: 0.95,
-          max_tokens: req.maxTokens ?? 8192,
-          stream: false,
+          temperature: req.temperature ?? 0.7,
+          max_tokens: req.maxTokens ?? 4096,
           ...(req.json ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,
@@ -49,7 +45,7 @@ export class NvidiaProvider implements LLMProvider {
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new LLMError(
-          `NVIDIA NIM request failed (${res.status}): ${detail.slice(0, 300)}`,
+          `Mistral AI request failed (${res.status}): ${detail.slice(0, 300)}`,
         );
       }
 
@@ -57,14 +53,14 @@ export class NvidiaProvider implements LLMProvider {
         choices?: Array<{ message?: { content?: string } }>;
       };
       const text = data.choices?.[0]?.message?.content ?? "";
-      if (!text) throw new LLMError("NVIDIA NIM returned an empty response");
+      if (!text) throw new LLMError("Mistral AI returned an empty response");
       return text;
     } catch (err) {
       clearTimeout(timeoutId);
       
       if (err instanceof Error && err.name === "AbortError") {
         throw new LLMError(
-          "NVIDIA NIM request timed out after 55 seconds. Try reducing maxTokens or simplifying the prompt.",
+          "Mistral AI request timed out after 55 seconds. Try reducing maxTokens or simplifying the prompt.",
         );
       }
       
