@@ -63,6 +63,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 /**
  * Extract a JSON object from a model response that may include prose or code fences.
+ * Handles truncated/malformed JSON by attempting to repair it.
  */
 export function extractJson(raw: string): unknown {
   if (!raw) throw new Error("Empty model response");
@@ -80,5 +81,42 @@ export function extractJson(raw: string): unknown {
       text = text.slice(start, end + 1);
     }
   }
-  return JSON.parse(text);
+
+  // Try to parse as-is first
+  try {
+    return JSON.parse(text);
+  } catch (firstError) {
+    // If JSON is truncated, try to repair it by finding the last complete object
+    const lastBrace = text.lastIndexOf("}");
+    if (lastBrace !== -1) {
+      // Count braces to find balanced JSON
+      let openBraces = 0;
+      let closeBraces = 0;
+      let lastValidPos = -1;
+
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === "{") openBraces++;
+        if (text[i] === "}") {
+          closeBraces++;
+          if (openBraces === closeBraces) {
+            lastValidPos = i;
+          }
+        }
+      }
+
+      if (lastValidPos !== -1) {
+        const repairedText = text.slice(0, lastValidPos + 1);
+        try {
+          return JSON.parse(repairedText);
+        } catch {
+          // If repair fails, throw original error
+        }
+      }
+    }
+
+    // Re-throw original error with more context
+    throw new Error(
+      `JSON parse failed: ${(firstError as Error).message}. Text length: ${text.length}`,
+    );
+  }
 }

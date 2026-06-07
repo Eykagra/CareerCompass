@@ -47,8 +47,8 @@ export async function POST(req: Request) {
         system: ROADMAP_SYSTEM,
         messages: [{ role: "user", content: roadmapUserPrompt(profile) }],
         json: true,
-        temperature: 0.5,
-        maxTokens: 3000,
+        temperature: 0.7,
+        maxTokens: 2500, // Reduced for faster responses
       });
       try {
         const candidate = RoadmapGraphSchema.parse(extractJson(raw));
@@ -58,6 +58,11 @@ export async function POST(req: Request) {
         });
       } catch (e) {
         lastErr = e;
+        // Log the error for debugging
+        console.error(`Attempt ${attempt + 1} failed:`, e);
+        if (attempt === 0) {
+          console.log("Raw response preview:", raw.slice(0, 500));
+        }
       }
     }
     throw new LLMError(

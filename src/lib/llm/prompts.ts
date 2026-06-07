@@ -1,34 +1,37 @@
 import type { ChatMessage, RoadmapGraph, UserProfile } from "@/lib/schema";
 
-export const ROADMAP_SYSTEM = `You are an expert career roadmap architect. You design personalized, realistic, dependency-ordered learning roadmaps. You are honest about timelines and never pad steps. You always answer with strict JSON only.`;
+export const ROADMAP_SYSTEM = `You are an expert career roadmap architect. You design personalized, realistic, dependency-ordered learning roadmaps. You are honest about timelines and never pad steps. You MUST return ONLY valid JSON with no markdown fences, no explanations, just the raw JSON object.`;
 
 export function roadmapUserPrompt(profile: UserProfile): string {
-  return `Create a personalized career roadmap.
+  return `Create a career roadmap for: ${profile.goal}
 
-USER PROFILE:
-- Goal: ${profile.goal}
-- Stage: ${profile.stage}
-- Known skills: ${profile.knownSkills.length ? profile.knownSkills.join(", ") : "none stated"}
-- Time available: ${profile.hoursPerWeek} hours/week
-- Budget: ${profile.budget}
-- Target timeline: ${profile.timelineMonths} months
+Profile: ${profile.stage} stage, ${profile.knownSkills.length ? profile.knownSkills.join(", ") : "no prior skills"}, ${profile.hoursPerWeek}h/week, ${profile.budget} budget, ${profile.timelineMonths}mo timeline.
 
-RULES:
-1. Build the roadmap FROM the user's current stage/skills TO their goal. Do NOT include steps for skills they already have.
-2. Order nodes by dependency (foundations first). Give each node a short "phase" label (e.g. "Foundations", "Core", "Specialization", "Job-ready").
-3. Add branching forks where a real decision exists (e.g. "Frontend vs Backend"). Use the edge "condition" field to label the fork.
-4. Respect time + budget. If budget is "free", prefer free resources. If the timeline is tight, cut nice-to-haves and say so in "why".
-5. Each node needs: a clear title, 2-5 concrete skills, an honest estimatedWeeks (number), a one-sentence "why", and 1-3 real resources.
-6. Use 6-12 nodes. Keep ids short and stable (n1, n2, ...).
+Requirements:
+- Start from their current level, exclude skills they already have
+- 6-10 nodes ordered by dependency
+- Each node: short title, 2-5 skills, realistic estimatedWeeks (number), one-sentence "why", 1-3 resources
+- Group nodes by phase (e.g. "Foundations", "Core", "Advanced")
+- Add edges showing dependencies, use "condition" for forks
+- Respect time/budget constraints (prefer free resources if budget="free")
+- Use short stable IDs (n1, n2, n3, etc)
 
-Return ONLY valid JSON, no markdown fences, matching exactly:
+Return ONLY this JSON structure (no markdown, no fences):
 {
-  "title": "string",
-  "summary": "string (1-2 sentences)",
+  "title": "Backend Engineer Roadmap",
+  "summary": "Brief 1-2 sentence overview",
   "nodes": [
-    { "id": "n1", "title": "string", "phase": "string", "skills": ["string"], "estimatedWeeks": 4, "why": "string", "resources": [{ "name": "string", "url": "string", "cost": "free" }] }
+    {
+      "id": "n1",
+      "title": "Node Title",
+      "phase": "Foundations",
+      "skills": ["skill1", "skill2"],
+      "estimatedWeeks": 4,
+      "why": "One sentence reason",
+      "resources": [{"name": "Resource Name", "url": "https://...", "cost": "free"}]
+    }
   ],
-  "edges": [ { "from": "n1", "to": "n2", "condition": "" } ]
+  "edges": [{"from": "n1", "to": "n2", "condition": ""}]
 }`;
 }
 

@@ -1,7 +1,7 @@
 import type { CompletionRequest, LLMProvider } from "./types";
 import { LLMError } from "./types";
 
-const DEFAULT_MODEL = process.env.MISTRAL_MODEL || "mistral-large-latest";
+const DEFAULT_MODEL = process.env.MISTRAL_MODEL || "mistral-small-latest";
 const BASE = process.env.MISTRAL_BASE_URL || "https://api.mistral.ai/v1";
 
 /**

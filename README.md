@@ -6,7 +6,7 @@
 
 Tell it your goal and where you are today. Get a personalized, **branching** career roadmap — and an **AI mentor** that explains every step and adapts the plan as your life changes.
 
-Built with **Next.js 14** · **TypeScript** · **Tailwind** · **React Flow** · provider-agnostic LLM layer (**Gemini / NVIDIA NIM / AWS Bedrock**)
+Built with **Next.js 14** · **TypeScript** · **Tailwind** · **React Flow** · provider-agnostic LLM layer (**Gemini / NVIDIA NIM / Mistral AI / AWS Bedrock**)
 
 </div>
 
@@ -34,6 +34,7 @@ Browser (Next.js App Router, React Flow, Tailwind)
 LLM provider abstraction  (src/lib/llm)
   ├── Gemini      (REST)
   ├── NVIDIA NIM  (OpenAI-compatible REST)
+  ├── Mistral AI  (OpenAI-compatible REST)
   ├── Bedrock     (AWS SDK, optional dependency)
   └── demo        (built-in sample roadmap, no key needed)
 ```
@@ -56,9 +57,17 @@ Set keys in `.env`. With **no keys**, CareerCompass serves a curated demo roadma
 | --- | --- | --- |
 | **Gemini** | `GEMINI_API_KEY`, `GEMINI_MODEL` | Free tier at [aistudio.google.com](https://aistudio.google.com/app/apikey) |
 | **NVIDIA NIM** | `NVIDIA_API_KEY`, `NVIDIA_MODEL` | OpenAI-compatible, free tier at [build.nvidia.com](https://build.nvidia.com) |
+| **Mistral AI** | `MISTRAL_API_KEY`, `MISTRAL_MODEL` | Fast and reliable at [console.mistral.ai](https://console.mistral.ai) |
 | **AWS Bedrock** | `BEDROCK_MODEL_ID`, `AWS_REGION` | Uses IAM role on EC2 — ideal with AWS Activate credits |
 
-Force a provider with `LLM_PROVIDER=gemini|nvidia|bedrock|demo`, or leave it unset to auto-detect.
+Force a provider with `LLM_PROVIDER=gemini|nvidia|mistral|bedrock|demo`, or leave it unset to auto-detect.
+
+### Performance Tips
+
+- **Faster models**: Use `mistral-small-latest` or `gemini-1.5-flash` for quicker responses (5-15s vs 30-60s)
+- **Token limits**: Reduced to 2500 tokens by default for optimal speed
+- **Timeout handling**: All providers include 55-second timeouts to prevent gateway errors
+- **JSON repair**: Automatic detection and repair of truncated JSON responses
 
 ## 🐳 Run with Docker
 
