@@ -60,9 +60,14 @@ export function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           {authed ? (
-            <ButtonLink href="/app" size="sm">
-              Open app
-            </ButtonLink>
+            <>
+              <ButtonLink href="/dashboard" variant="ghost" size="sm">
+                My maps
+              </ButtonLink>
+              <ButtonLink href="/app" size="sm">
+                Open app
+              </ButtonLink>
+            </>
           ) : (
             <>
               <ButtonLink href="/signin" variant="ghost" size="sm">
@@ -98,8 +103,15 @@ export function Navbar() {
               </Link>
             ))}
             <ButtonLink
-              href={authed ? "/app" : "/signin"}
+              href={authed ? "/dashboard" : "/signin"}
+              variant="ghost"
               className="mt-2 w-full"
+            >
+              {authed ? "My maps" : "Sign in"}
+            </ButtonLink>
+            <ButtonLink
+              href={authed ? "/app" : "/signin"}
+              className="mt-1 w-full"
             >
               {authed ? "Open app" : "Start free"}
             </ButtonLink>
