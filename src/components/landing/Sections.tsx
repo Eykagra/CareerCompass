@@ -239,7 +239,7 @@ export function Pricing() {
                   </span>
                   <span className="text-sm text-ink-dim">/ {t.cadence}</span>
                 </div>
-                <ul className="mt-6 space-y-3">
+                <ul className="mb-6 mt-6 space-y-3">
                   {t.perks.map((p) => (
                     <li
                       key={p}
@@ -253,7 +253,7 @@ export function Pricing() {
                 <ButtonLink
                   href="/app"
                   variant={t.featured ? "primary" : "secondary"}
-                  className="mt-7 w-full"
+                  className="mt-auto w-full"
                 >
                   {t.cta}
                 </ButtonLink>
@@ -289,7 +289,10 @@ export function FAQ() {
   return (
     <section id="faq" className="relative py-24 md:py-32">
       <div className="mx-auto max-w-3xl px-5">
-        <SectionHeading eyebrow="FAQ" title="Questions, answered" />
+        <SectionHeading
+          eyebrow="FAQ"
+          title="Everything you’re wondering, before you start"
+        />
         <div className="mt-12 space-y-3">
           {faqs.map(([q, a], i) => (
             <Reveal key={q} delay={(i % 4) * 60}>

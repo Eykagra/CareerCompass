@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Compass,
+  Download,
+  LayoutDashboard,
   LogOut,
   MessagesSquare,
   PanelRightClose,
+  PanelRightOpen,
   RotateCcw,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -14,7 +18,7 @@ import { IntakeForm } from "./IntakeForm";
 import { RoadmapCanvas } from "./RoadmapCanvas";
 import { NodeDetail } from "./NodeDetail";
 import { MentorChat } from "./MentorChat";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import {
   clearChat,
@@ -23,6 +27,12 @@ import {
   saveSession,
   type SavedSession,
 } from "@/lib/storage";
+import {
+  exportMapJson,
+  fetchMap,
+  patchCompleted,
+  saveMap,
+} from "@/lib/maps-client";
 import type { RoadmapGraph, UserProfile } from "@/lib/schema";
 
 type Phase = "intake" | "ready";
@@ -44,17 +54,44 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>("mentor");
   const [hydrated, setHydrated] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(380);
+  const [panelOpen, setPanelOpen] = useState(true);
+  // The DB id of the currently-open saved map (null = unsaved/local only).
+  const [mapId, setMapId] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
-  // Restore any saved session on first load.
+  // On first load: if the URL points at a saved map (?map=id) load it from the
+  // database; otherwise restore the local session.
   useEffect(() => {
-    const saved = loadSession();
-    if (saved) {
-      setProfile(saved.profile);
-      setRoadmap(saved.roadmap);
-      setCompleted(saved.completed);
-      setPhase("ready");
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("map");
+
+    async function init() {
+      if (requested) {
+        try {
+          const m = await fetchMap(requested);
+          setMapId(m.id);
+          setProfile(m.profile);
+          setRoadmap(m.roadmap);
+          setCompleted(m.completed);
+          setPhase("ready");
+          clearChat();
+          setHydrated(true);
+          return;
+        } catch {
+          /* fall through to local session */
+        }
+      }
+      const saved = loadSession();
+      if (saved) {
+        setProfile(saved.profile);
+        setRoadmap(saved.roadmap);
+        setCompleted(saved.completed);
+        setPhase("ready");
+      }
+      setHydrated(true);
     }
-    setHydrated(true);
+    init();
   }, []);
 
   // Persist whenever the meaningful state changes.
@@ -90,13 +127,30 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
       if (!res.ok || !data.roadmap) {
         throw new Error(data.error || "Could not generate your roadmap.");
       }
+      const graph = data.roadmap as RoadmapGraph;
       clearChat();
       setProfile(p);
-      setRoadmap(data.roadmap as RoadmapGraph);
+      setRoadmap(graph);
       setCompleted([]);
       setSelectedId(null);
       setPanel("mentor");
+      setPanelOpen(true);
       setPhase("ready");
+
+      // Persist to the database (free-tier limited). Non-blocking for UX.
+      const result = await saveMap({ profile: p, roadmap: graph });
+      if (result.ok) {
+        setMapId(result.map.id);
+        // Reflect the saved id in the URL without a navigation.
+        window.history.replaceState(null, "", `/app?map=${result.map.id}`);
+      } else {
+        setMapId(null);
+        setSaveNotice(
+          result.limitReached
+            ? `${result.error} Your roadmap is still here, but won't be saved.`
+            : result.error,
+        );
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -105,9 +159,24 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
   }
 
   function toggleComplete(id: string) {
-    setCompleted((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setCompleted((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id];
+      // Sync progress to the DB if this map is saved.
+      if (mapId) void patchCompleted(mapId, next);
+      return next;
+    });
+  }
+
+  function exportCurrent() {
+    if (!profile || !roadmap) return;
+    exportMapJson({
+      title: roadmap.title || profile.goal,
+      profile,
+      roadmap,
+      completed,
+    });
   }
 
   function reset() {
@@ -118,12 +187,41 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
     setCompleted([]);
     setSelectedId(null);
     setError(null);
+    setMapId(null);
+    setSaveNotice(null);
+    window.history.replaceState(null, "", "/app");
     setPhase("intake");
   }
 
   function selectNode(id: string) {
     setSelectedId(id);
     setPanel("detail");
+    setPanelOpen(true);
+  }
+
+  const MIN_PANEL = 300;
+  const MAX_PANEL = 560;
+
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    function onMove(ev: MouseEvent) {
+      // Dragging left (smaller clientX) should widen the panel.
+      const next = startWidth + (startX - ev.clientX);
+      setPanelWidth(Math.min(MAX_PANEL, Math.max(MIN_PANEL, next)));
+    }
+    function onUp() {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
   }
 
   if (!hydrated) {
@@ -156,7 +254,21 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
         title={roadmap.title || profile.goal}
         progress={progress}
         user={user}
+        onExport={exportCurrent}
       />
+
+      {saveNotice && (
+        <div className="flex items-center justify-between gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+          <span>{saveNotice}</span>
+          <button
+            onClick={() => setSaveNotice(null)}
+            className="rounded p-1 hover:bg-white/10"
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Canvas */}
@@ -175,38 +287,72 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
               </div>
             </div>
           )}
+          {/* Reopen panel button (visible when panel is closed) */}
+          {!panelOpen && (
+            <button
+              onClick={() => setPanelOpen(true)}
+              className="glass absolute right-5 top-5 hidden items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium text-ink-soft transition-colors hover:text-ink lg:flex"
+            >
+              <PanelRightOpen className="h-4 w-4" /> Mentor
+            </button>
+          )}
         </div>
 
-        {/* Side panel */}
-        <aside className="hidden w-[380px] shrink-0 border-l border-white/8 bg-bg-soft/40 lg:flex lg:flex-col">
-          <div className="flex items-center gap-1 border-b border-white/8 p-2">
-            <PanelTab
-              active={panel === "mentor"}
-              onClick={() => setPanel("mentor")}
-              icon={<MessagesSquare className="h-4 w-4" />}
-              label="Mentor"
+        {panelOpen && (
+          <>
+            {/* Resize handle */}
+            <div
+              onMouseDown={startResize}
+              className="hidden w-1 shrink-0 cursor-col-resize bg-white/8 transition-colors hover:bg-brand-400/50 lg:block"
+              role="separator"
+              aria-orientation="vertical"
             />
-            <PanelTab
-              active={panel === "detail"}
-              onClick={() => setPanel("detail")}
-              icon={<PanelRightClose className="h-4 w-4" />}
-              label="Step"
-              disabled={!selectedNode}
-            />
-          </div>
-          <div className="min-h-0 flex-1">
-            {panel === "mentor" ? (
-              <MentorChat profile={profile} roadmap={roadmap} />
-            ) : (
-              <NodeDetail
-                node={selectedNode}
-                done={selectedNode ? completedSet.has(selectedNode.id) : false}
-                onToggle={toggleComplete}
-                onClose={() => setPanel("mentor")}
-              />
-            )}
-          </div>
-        </aside>
+
+            {/* Side panel */}
+            <aside
+              className="hidden shrink-0 border-l border-white/8 bg-bg-soft/40 lg:flex lg:flex-col"
+              style={panelWidthStyle(panelWidth)}
+            >
+              <div className="flex items-center gap-1 border-b border-white/8 p-2">
+                <PanelTab
+                  active={panel === "mentor"}
+                  onClick={() => setPanel("mentor")}
+                  icon={<MessagesSquare className="h-4 w-4" />}
+                  label="Mentor"
+                />
+                <PanelTab
+                  active={panel === "detail"}
+                  onClick={() => setPanel("detail")}
+                  icon={<PanelRightClose className="h-4 w-4" />}
+                  label="Step"
+                  disabled={!selectedNode}
+                />
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-white/5 hover:text-ink"
+                  aria-label="Close panel"
+                  title="Close panel"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                {panel === "mentor" ? (
+                  <MentorChat profile={profile} roadmap={roadmap} />
+                ) : (
+                  <NodeDetail
+                    node={selectedNode}
+                    done={
+                      selectedNode ? completedSet.has(selectedNode.id) : false
+                    }
+                    onToggle={toggleComplete}
+                    onClose={() => setPanel("mentor")}
+                  />
+                )}
+              </div>
+            </aside>
+          </>
+        )}
       </div>
     </div>
   );
@@ -217,11 +363,13 @@ function TopBar({
   onReset,
   progress,
   user,
+  onExport,
 }: {
   title: string;
   onReset: (() => void) | null;
   progress?: number;
   user?: AccountUser | null;
+  onExport?: () => void;
 }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/8 bg-bg/80 px-4 backdrop-blur">
@@ -250,6 +398,14 @@ function TopBar({
             </div>
             <span className="text-xs text-ink-dim">{progress}%</span>
           </div>
+        )}
+        <ButtonLink href="/dashboard" variant="ghost" size="sm">
+          <LayoutDashboard className="h-3.5 w-3.5" /> My maps
+        </ButtonLink>
+        {onExport && (
+          <Button variant="ghost" size="sm" onClick={onExport}>
+            <Download className="h-3.5 w-3.5" /> Export
+          </Button>
         )}
         {onReset && (
           <Button variant="secondary" size="sm" onClick={onReset}>
@@ -287,6 +443,10 @@ function TopBar({
 
 function progressStyle(progress: number): React.CSSProperties {
   return { width: `${progress}%` };
+}
+
+function panelWidthStyle(width: number): React.CSSProperties {
+  return { width: `${width}px` };
 }
 
 function PanelTab({

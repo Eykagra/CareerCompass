@@ -17,7 +17,9 @@ Built with **Next.js 14** · **TypeScript** · **Tailwind** · **React Flow** ·
 - **Branching roadmaps** — real decision forks, not a flat checklist, rendered as an interactive node-and-arrow canvas.
 - **Starts where you are** — a quick intake (stage, skills, time, budget, timeline) tailors the plan to your real starting point.
 - **AI mentor** — chat that knows your roadmap and re-routes it live.
-- **Progress tracking** — mark steps complete and watch your progress update. Persisted locally in the browser.
+- **Progress tracking** — mark steps complete and watch your progress update. Saved to your account.
+- **Saved maps & dashboard** — every roadmap is stored in a database, with a dashboard to open, export, or delete them. Free plan keeps up to **3 maps**.
+- **Export** — download any roadmap as JSON.
 - **Premium, animated UI** — aurora gradients, glassmorphism, scroll reveals, fully responsive.
 - **Provider-agnostic** — swap between Gemini, NVIDIA NIM, or AWS Bedrock with one env var. **Runs in demo mode with no key at all.**
 - **Production-ready** — multi-stage Docker build using Next.js `standalone` output. Deploy on EC2 in minutes.
@@ -28,18 +30,18 @@ Built with **Next.js 14** · **TypeScript** · **Tailwind** · **React Flow** ·
 Browser (Next.js App Router, React Flow, Tailwind)
         │  fetch
         ▼
-/api/roadmap     /api/mentor     /api/intake     /api/health
+/api/roadmap     /api/mentor     /api/intake     /api/maps     /api/health
         │
         ▼
-LLM provider abstraction  (src/lib/llm)
-  ├── Gemini      (REST)
-  ├── NVIDIA NIM  (OpenAI-compatible REST)
+LLM provider abstraction  (src/lib/llm)        SQLite (src/lib/db.ts)
+  ├── Gemini      (REST)                          └── saved maps, per-user,
+  ├── NVIDIA NIM  (OpenAI-compatible REST)            free limit of 3
   ├── Mistral AI  (OpenAI-compatible REST)
   ├── Bedrock     (AWS SDK, optional dependency)
   └── demo        (built-in sample roadmap, no key needed)
 ```
 
-No database required — sessions persist in `localStorage`, so a single container is fully stateless and trivial to deploy.
+Saved roadmaps persist in a SQLite database (mount `DATA_DIR` as a volume in production). The mentor chat and in-progress session still use `localStorage` for instant restore.
 
 ## 🚀 Quick start (local)
 

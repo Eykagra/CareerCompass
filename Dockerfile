@@ -3,6 +3,8 @@
 # ---- Dependencies ----
 FROM node:20-alpine AS deps
 WORKDIR /app
+# better-sqlite3 is a native module — needs build toolchain to compile.
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* ./
 RUN npm install --no-audit --no-fund
 
@@ -29,6 +31,11 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Writable directory for the SQLite database (mount a volume here to persist).
+ENV DATA_DIR=/app/data
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+VOLUME ["/app/data"]
 
 USER nextjs
 EXPOSE 3000

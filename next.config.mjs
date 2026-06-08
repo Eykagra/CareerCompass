@@ -7,6 +7,12 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   experimental: {
     optimizePackageImports: ["lucide-react", "framer-motion", "@xyflow/react"],
+    // Don't bundle the native module — keep it external at runtime (Next 14).
+    serverComponentsExternalPackages: ["better-sqlite3"],
+    // Ensure the native better-sqlite3 binary is bundled into standalone output.
+    outputFileTracingIncludes: {
+      "/api/maps/**": ["./node_modules/better-sqlite3/build/Release/*.node"],
+    },
   },
 };
 

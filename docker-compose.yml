@@ -11,6 +11,9 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - DATA_DIR=/app/data
+    volumes:
+      - careercompass-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
@@ -18,3 +21,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+volumes:
+  careercompass-data:
