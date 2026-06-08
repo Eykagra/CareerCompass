@@ -11,6 +11,7 @@ Requirements:
 - Start from their current level, exclude skills they already have
 - 6-10 nodes ordered by dependency
 - Each node: short title, 2-5 skills, realistic estimatedWeeks (number), one-sentence "why", 1-3 resources
+- For each resource, "cost" MUST be exactly "free" or "paid" (no other words)
 - Group nodes by phase (e.g. "Foundations", "Core", "Advanced")
 - Add edges showing dependencies, use "condition" for forks
 - Respect time/budget constraints (prefer free resources if budget="free")

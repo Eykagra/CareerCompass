@@ -25,7 +25,18 @@ export type UserProfile = z.infer<typeof UserProfileSchema>;
 export const ResourceSchema = z.object({
   name: z.string().max(120),
   url: z.string().max(300).optional().default(""),
-  cost: z.enum(["free", "paid"]).default("free"),
+  // Models sometimes return variants like "free (audit mode)", "Free", or
+  // "$" instead of the strict enum. Normalize to "free" | "paid" rather than
+  // failing the whole roadmap. Anything that isn't clearly paid defaults to free.
+  cost: z
+    .union([z.string(), z.boolean(), z.null()])
+    .optional()
+    .transform((val) => {
+      if (typeof val !== "string") return "free" as const;
+      return /paid|\$|cost|subscri|premium/i.test(val)
+        ? ("paid" as const)
+        : ("free" as const);
+    }),
 });
 export type Resource = z.infer<typeof ResourceSchema>;
 
