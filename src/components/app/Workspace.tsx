@@ -60,13 +60,25 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
   const [mapId, setMapId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
-  // On first load: if the URL points at a saved map (?map=id) load it from the
-  // database; otherwise restore the local session.
+  // On first load, decide what to show:
+  //  - ?new=1        → always start a fresh intake (clears stale local session)
+  //  - ?map=<id>     → load that saved map from the database
+  //  - otherwise     → restore the local session, but only if its map still
+  //                    exists in the DB (so a deleted map can't reappear)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("map");
+    const isNew = params.get("new") === "1";
 
     async function init() {
+      if (isNew) {
+        clearSession();
+        clearChat();
+        window.history.replaceState(null, "", "/app");
+        setHydrated(true);
+        return;
+      }
+
       if (requested) {
         try {
           const m = await fetchMap(requested);
@@ -82,8 +94,22 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
           /* fall through to local session */
         }
       }
+
       const saved = loadSession();
       if (saved) {
+        // If this local session mirrors a saved map, make sure that map still
+        // exists. If it was deleted from the dashboard, drop the stale session.
+        if (saved.mapId) {
+          try {
+            await fetchMap(saved.mapId);
+          } catch {
+            clearSession();
+            clearChat();
+            setHydrated(true);
+            return;
+          }
+        }
+        setMapId(saved.mapId ?? null);
         setProfile(saved.profile);
         setRoadmap(saved.roadmap);
         setCompleted(saved.completed);
@@ -99,6 +125,7 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
     if (phase === "ready" && profile && roadmap) {
       const session: SavedSession = {
         id: "local",
+        mapId,
         profile,
         roadmap,
         completed,
@@ -106,7 +133,7 @@ export function Workspace({ user }: { user?: AccountUser | null }) {
       };
       saveSession(session);
     }
-  }, [phase, profile, roadmap, completed]);
+  }, [phase, profile, roadmap, completed, mapId]);
 
   const completedSet = useMemo(() => new Set(completed), [completed]);
   const selectedNode = useMemo(

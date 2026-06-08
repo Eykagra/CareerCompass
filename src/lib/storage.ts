@@ -4,6 +4,8 @@ import type { ChatMessage, RoadmapGraph, UserProfile } from "@/lib/schema";
 
 export type SavedSession = {
   id: string;
+  /** The DB id of the saved map this session mirrors, if any. */
+  mapId: string | null;
   profile: UserProfile;
   roadmap: RoadmapGraph;
   completed: string[];

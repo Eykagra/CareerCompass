@@ -114,7 +114,7 @@ export function Dashboard({ user }: { user?: AccountUser | null }) {
             </p>
           </div>
           <ButtonLink
-            href="/app"
+            href="/app?new=1"
             variant={atLimit ? "secondary" : "primary"}
             className="shrink-0"
           >
@@ -144,7 +144,7 @@ export function Dashboard({ user }: { user?: AccountUser | null }) {
               Generate your first personalized roadmap and it&apos;ll show up
               here, ready to revisit and export.
             </p>
-            <ButtonLink href="/app" className="mt-6">
+            <ButtonLink href="/app?new=1" className="mt-6">
               <Plus className="h-4 w-4" /> Build my first roadmap
             </ButtonLink>
           </div>
