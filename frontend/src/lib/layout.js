@@ -1,63 +1,46 @@
-const COL_W = 320;
-const ROW_H = 188;
+import dagre from 'dagre';
+
+const nodeWidth = 320;
+const nodeHeight = 188;
 
 /**
- * Assign a depth (column) to every node via longest-path from roots, then lay
- * out columns left-to-right and stack siblings vertically. Deterministic and
- * dependency-free — good enough for the branching roadmaps we generate.
+ * Uses Dagre to arrange nodes in a logical hierarchical graph layout,
+ * avoiding overlapping edges and ensuring dependencies flow logically.
  */
 export function layoutRoadmap(graph, completed) {
-  const ids = graph.nodes.map((n) => n.id);
-  const idSet = new Set(ids);
-  const edges = graph.edges.filter((e) => idSet.has(e.from) && idSet.has(e.to));
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  const incoming = new Map();
-  const adj = new Map();
-  ids.forEach((id) => {
-    incoming.set(id, 0);
-    adj.set(id, []);
-  });
-  edges.forEach((e) => {
-    adj.get(e.from).push(e.to);
-    incoming.set(e.to, (incoming.get(e.to) || 0) + 1);
+  // Setup dagre graph configuration
+  // rankdir 'TB' flows top-to-bottom, solving the 'long horizontal line' issue naturally
+  dagreGraph.setGraph({ rankdir: 'TB', ranksep: 100, nodesep: 50 });
+
+  graph.nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
   });
 
-  // Longest-path depth via BFS layering.
-  const depth = new Map();
-  ids.forEach((id) => depth.set(id, 0));
-  let changed = true;
-  let guard = 0;
-  while (changed && guard < ids.length + 5) {
-    changed = false;
-    guard++;
-    edges.forEach((e) => {
-      const nd = (depth.get(e.from) || 0) + 1;
-      if (nd > (depth.get(e.to) || 0)) {
-        depth.set(e.to, nd);
-        changed = true;
-      }
-    });
-  }
-
-  // Group by depth and assign rows.
-  const byDepth = new Map();
-  ids.forEach((id) => {
-    const d = depth.get(id) || 0;
-    if (!byDepth.has(d)) byDepth.set(d, []);
-    byDepth.get(d).push(id);
+  graph.edges.forEach((edge) => {
+    // Only layout edges where both nodes exist
+    if (graph.nodes.find(n => n.id === edge.from) && graph.nodes.find(n => n.id === edge.to)) {
+      dagreGraph.setEdge(edge.from, edge.to);
+    }
   });
+
+  dagre.layout(dagreGraph);
 
   const firstActive = pickActive(graph, completed);
 
   const nodes = graph.nodes.map((n) => {
-    const d = depth.get(n.id) || 0;
-    const col = byDepth.get(d);
-    const row = col.indexOf(n.id);
-    const offset = ((col.length - 1) * ROW_H) / 2;
+    const nodeWithPosition = dagreGraph.node(n.id);
+    
+    // Dagre sets x, y as the center of the node, while React Flow assumes top-left
+    const xPos = nodeWithPosition.x - nodeWidth / 2;
+    const yPos = nodeWithPosition.y - nodeHeight / 2;
+
     return {
       id: n.id,
       type: "phase",
-      position: { x: d * COL_W, y: row * ROW_H - offset },
+      position: { x: xPos, y: yPos },
       data: {
         title: n.title,
         phase: n.phase || "",
@@ -70,7 +53,7 @@ export function layoutRoadmap(graph, completed) {
     };
   });
 
-  const flowEdges = edges.map((e, i) => ({
+  const flowEdges = graph.edges.map((e, i) => ({
     id: `e${i}-${e.from}-${e.to}`,
     source: e.from,
     target: e.to,

@@ -45,3 +45,4 @@ __pycache__/
 venv/
 ENV/
 frontend/dist/
+loom_video_guide.md
