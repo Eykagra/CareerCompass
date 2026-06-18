@@ -1,43 +1,37 @@
 # syntax=docker/dockerfile:1
 
-# ---- Dependencies ----
-FROM node:20-alpine AS deps
-WORKDIR /app
-# better-sqlite3 is a native module — needs build toolchain to compile.
-RUN apk add --no-cache python3 make g++
-COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
-
-# ---- Builder ----
-FROM node:20-alpine AS builder
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# ---- Stage 1: Build Frontend ----
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
 RUN npm run build
 
-# ---- Runner ----
-FROM node:20-alpine AS runner
-WORKDIR /app
+# ---- Stage 2: Serve Backend & Frontend ----
+FROM python:3.11-slim AS runner
+WORKDIR /app/backend
+
+# Install build dependencies if needed (none are strictly required for standard requirements, but lets keep it clean)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend codebase
+COPY backend/ ./
+
+# Copy compiled frontend static assets from Stage 1 into the location expected by main.py
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
+# SQLite persistence directory (mount volume here)
+ENV DATA_DIR=/app/backend/data
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+RUN mkdir -p /app/backend/data
 
-RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
-
-# Next.js standalone output bundles only what is needed to run.
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Writable directory for the SQLite database (mount a volume here to persist).
-ENV DATA_DIR=/app/data
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
-VOLUME ["/app/data"]
-
-USER nextjs
+VOLUME ["/app/backend/data"]
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
